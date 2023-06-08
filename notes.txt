@@ -1,0 +1,3 @@
+todo:
+* First step is to set up data structures and ability to simulate game
+* Figure out how to handle pregame state (card passing)
