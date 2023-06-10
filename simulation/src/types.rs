@@ -17,15 +17,23 @@ pub struct GameState {
 
 impl Display for GameState {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(
-            f,
-            "\nCurrent Player: {} ({} cards left)\nTop Card: {}",
-            self.table.front().map(|p| p.name.as_str()).unwrap_or("N/A"),
-            self.table.front().map(|p| p.current_hand.len()).unwrap_or(0),
-            self.top_card
-                .map(|card_play| format!("{card_play}"))
-                .unwrap_or("None".to_string())
-        )
+        let top_card_str = self
+            .top_card
+            .map(|card_play| format!("{card_play}"))
+            .unwrap_or("None".to_string());
+        let players_str = self
+            .table
+            .iter()
+            .map(|player| {
+                format!(
+                    "{}: {} cards left: {}",
+                    player.name,
+                    player.current_hand.len(),
+                    player.current_hand.iter().sorted().map(|c| format!("{c}")).join(",")
+                )
+            })
+            .join("\n");
+        write!(f, "\nTop Card: {}\nTable:\n{}", top_card_str, players_str)
     }
 }
 
@@ -45,9 +53,11 @@ pub enum Action {
 impl Display for Action {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         let string = match self {
-            Action::SendCard { to, card } => format!("Send {card} to {to}"),
+            Action::SendCard { card, .. } => format!("Send {card}"),
             Action::Pass => "Pass".to_string(),
-            Action::PlayCards { card_play } => format!("Play {:?}", card_play.to_vec().iter().join(",")),
+            Action::PlayCards { card_play } => {
+                format!("Play {}", card_play.to_vec().iter().join(","))
+            }
         };
         write!(f, "{}", string)
     }
@@ -63,7 +73,14 @@ pub enum CardPlay {
 
 impl Display for CardPlay {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "({})", self.to_vec().iter().map(|card| format!("{}", card)).join(", "))
+        write!(
+            f,
+            "({})",
+            self.to_vec()
+                .iter()
+                .map(|card| format!("{}", card))
+                .join(", ")
+        )
     }
 }
 
@@ -117,7 +134,7 @@ pub enum Role {
     Asshole,
 }
 
-#[derive(Copy, Clone, Debug, PartialEq, Eq)]
+#[derive(Copy, Clone, Debug, PartialEq, Eq, Hash)]
 pub struct Card {
     card: DOCCard,
 }

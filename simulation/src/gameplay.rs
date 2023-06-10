@@ -1,4 +1,4 @@
-use std::collections::VecDeque;
+use std::collections::{HashSet, VecDeque};
 
 use deckofcards::{Deck, Rank, Suit};
 use itertools::Itertools;
@@ -260,17 +260,27 @@ impl GameState {
                     },
                 }));
 
+                let mut sent_cards: HashSet<Card> = HashSet::new();
                 events.extend((0..num_cards).map(|_| {
                     let available_actions: Vec<_> = president
                         .current_hand
                         .iter()
-                        .map(|&card| Action::SendCard {
-                            to: asshole_id,
-                            card,
+                        .filter_map(|&card| {
+                            if !sent_cards.contains(&card) {
+                                Some(Action::SendCard {
+                                    to: asshole_id,
+                                    card,
+                                })
+                            } else {
+                                None
+                            }
                         })
                         .collect();
                     // president/VP should send bottom cards strategically
                     let action = president.select_action(self, &available_actions);
+                    if let Action::SendCard { card, .. } = action {
+                        sent_cards.insert(card);
+                    }
                     Event {
                         player_id: president_id,
                         action,
@@ -291,6 +301,7 @@ impl GameState {
                     .get_player_mut(*player_id)
                     .expect("Card-send event recorded by unknown player");
                 send_player.current_hand.remove_card(card);
+                log::info!("{} did: {}", send_player, event.action);
                 let rec_player = self
                     .get_player_mut(*to)
                     .expect("Tried to send a card to unknown player");
@@ -309,10 +320,73 @@ impl GameState {
     }
 
     pub fn start_new_game(&mut self) {
-        // TODO: should enable option to shuffle seating order between games
+        // TODO: should enable option to shuffle seating order between games. something like:
+        // players.shuffle(&mut thread_rng());
+        // let table = VecDeque::from(players);
 
-        // TODO: scan history to assign new roles for next game
-        todo!()
+        // scan history to assign new roles for next game
+        let mut worst_to_first = Vec::with_capacity(self.table.len());
+
+        // asshole may still have cards left
+        for player in &self.table {
+            if !player.current_hand.is_empty() {
+                worst_to_first.push(player.id);
+            }
+        }
+
+        for &event in self.history.iter().rev() {
+            if matches!(event.action, Action::PlayCards { .. })
+                && !worst_to_first.contains(&event.player_id)
+            {
+                worst_to_first.push(event.player_id);
+            }
+        }
+
+        let results_str = worst_to_first.iter().rev().enumerate().map(|(idx, p_id)| {
+            let player = self
+                .get_player(*p_id)
+                .expect("ID that played in last game should still exist");
+            format!("{}. {}", idx + 1, player.name)
+        }).join("\n");
+        log::info!("Game over! Results:\n{results_str}");
+
+        // NOTE: assumes all roles are being used
+        if let Some(&asshole_id) = worst_to_first.get(0) {
+            let player = self
+                .get_player_mut(asshole_id)
+                .expect("ID that played in last game should still exist");
+            player.role = Some(Role::Asshole);
+        }
+        if let Some(&vice_asshole_id) = worst_to_first.get(1) {
+            let player = self
+                .get_player_mut(vice_asshole_id)
+                .expect("ID that played in last game should still exist");
+            player.role = Some(Role::ViceAsshole);
+        }
+        if let Some(&vp_id) = worst_to_first.get(worst_to_first.len() - 2) {
+            let player = self
+                .get_player_mut(vp_id)
+                .expect("ID that played in last game should still exist");
+            player.role = Some(Role::VicePresident);
+        }
+        if let Some(&prez_id) = worst_to_first.get(worst_to_first.len() - 1) {
+            let player = self
+                .get_player_mut(prez_id)
+                .expect("ID that played in last game should still exist");
+            player.role = Some(Role::President);
+        }
+
+        self.top_card = None;
+        self.history.clear();
+
+        let mut deck = Deck::new();
+        deck.reset_shuffle();
+        let hand_size = deck.count() / self.table.len();
+        for player in self.table.iter_mut() {
+            player.current_hand = deck.deal(hand_size).into_iter().map_into().collect();
+        }
+
+        log::info!("New game!");
     }
 }
 
@@ -331,7 +405,7 @@ impl Player {
         game_state: &GameState,
         available_actions: &[Action],
     ) -> Action {
-        // TODO
+        // NOTE: always play worst allowable card play
         let card_play = available_actions
             .iter()
             .filter_map(|action| {
