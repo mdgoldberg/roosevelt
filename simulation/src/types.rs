@@ -1,39 +1,114 @@
-use std::{cmp::Ordering, collections::VecDeque, fmt::Debug};
+use std::{
+    cmp::Ordering,
+    collections::VecDeque,
+    fmt::{Debug, Display},
+};
 
 use deckofcards::{Card as DOCCard, Rank, Suit};
+use itertools::Itertools;
 use uuid::Uuid;
 
 #[derive(Debug)]
 pub struct GameState {
     pub table: VecDeque<Player>,
-    pub top_card: Option<Vec<Card>>,
+    pub top_card: Option<CardPlay>,
     pub history: Vec<Event>,
 }
 
-#[derive(Debug)]
+impl Display for GameState {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(
+            f,
+            "\nCurrent Player: {} ({} cards left)\nTop Card: {}",
+            self.table.front().map(|p| p.name.as_str()).unwrap_or("N/A"),
+            self.table.front().map(|p| p.current_hand.len()).unwrap_or(0),
+            self.top_card
+                .map(|card_play| format!("{card_play}"))
+                .unwrap_or("None".to_string())
+        )
+    }
+}
+
+#[derive(Copy, Clone, Debug)]
 pub struct Event {
     pub player_id: Uuid,
     pub action: Action,
 }
 
-#[derive(Clone, Debug)]
+#[derive(Copy, Clone, Debug)]
 pub enum Action {
     SendCard { to: Uuid, card: Card },
     Pass,
-    PlayCards { cards: Vec<Card> },
+    PlayCards { card_play: CardPlay },
+}
+
+impl Display for Action {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let string = match self {
+            Action::SendCard { to, card } => format!("Send {card} to {to}"),
+            Action::Pass => "Pass".to_string(),
+            Action::PlayCards { card_play } => format!("Play {:?}", card_play.to_vec().iter().join(",")),
+        };
+        write!(f, "{}", string)
+    }
+}
+
+#[derive(PartialEq, Eq, Copy, Clone, Debug)]
+pub enum CardPlay {
+    Single(Card),
+    Pair(Card, Card),
+    Triple(Card, Card, Card),
+    Quad(Card, Card, Card, Card),
+}
+
+impl Display for CardPlay {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "({})", self.to_vec().iter().map(|card| format!("{}", card)).join(", "))
+    }
+}
+
+impl PartialOrd for CardPlay {
+    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+        if std::mem::discriminant(self) != std::mem::discriminant(other) {
+            return None;
+        }
+        let our_card = match self {
+            CardPlay::Single(card) => card,
+            CardPlay::Pair(card, _) => card,
+            CardPlay::Triple(card, _, _) => card,
+            CardPlay::Quad(card, _, _, _) => card,
+        };
+        let their_card = match other {
+            CardPlay::Single(card) => card,
+            CardPlay::Pair(card, _) => card,
+            CardPlay::Triple(card, _, _) => card,
+            CardPlay::Quad(card, _, _, _) => card,
+        };
+        our_card.partial_cmp(their_card)
+    }
 }
 
 #[derive(Clone, Debug)]
 pub struct Player {
     pub id: Uuid,
     pub name: String,
-    pub pregame_cards_received: Vec<Card>,
-    pub pregame_cards_sent: Vec<Card>,
     pub role: Option<Role>,
     pub current_hand: Vec<Card>,
 }
 
-#[derive(Copy, Clone, Debug, PartialEq, Eq)]
+impl Display for Player {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self.name)
+    }
+}
+
+impl PartialEq for Player {
+    fn eq(&self, other: &Self) -> bool {
+        self.id == other.id
+    }
+}
+
+#[derive(Copy, Clone, Debug, PartialEq, Eq, Hash)]
 pub enum Role {
     President,
     VicePresident,
@@ -45,6 +120,12 @@ pub enum Role {
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]
 pub struct Card {
     card: DOCCard,
+}
+
+impl Display for Card {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self.card)
+    }
 }
 
 impl Card {
@@ -67,6 +148,13 @@ impl Card {
 
     pub fn suit(&self) -> Suit {
         self.card.suit
+    }
+
+    pub fn value(&self) -> usize {
+        match self.rank() {
+            Rank::Two => Rank::Ace.ordinal() + 1,
+            rank => rank.ordinal(),
+        }
     }
 }
 
