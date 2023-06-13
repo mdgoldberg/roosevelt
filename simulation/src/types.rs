@@ -29,7 +29,12 @@ impl Display for GameState {
                     "{}: {} cards left: {}",
                     player.name,
                     player.current_hand.len(),
-                    player.current_hand.iter().sorted().map(|c| format!("{c}")).join(",")
+                    player
+                        .current_hand
+                        .iter()
+                        .sorted()
+                        .map(|c| format!("{c}"))
+                        .join(",")
                 )
             })
             .join("\n");

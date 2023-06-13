@@ -2,11 +2,11 @@ use crate::types::{Action, Card, CardPlay};
 
 impl CardPlay {
     pub fn from_cards(cards: &[&Card]) -> CardPlay {
-        match cards {
-            &[card] => CardPlay::Single(*card),
-            &[card1, card2] => CardPlay::Pair(*card1, *card2),
-            &[card1, card2, card3] => CardPlay::Triple(*card1, *card2, *card3),
-            &[card1, card2, card3, card4] => CardPlay::Quad(*card1, *card2, *card3, *card4),
+        match *cards {
+            [card] => CardPlay::Single(*card),
+            [card1, card2] => CardPlay::Pair(*card1, *card2),
+            [card1, card2, card3] => CardPlay::Triple(*card1, *card2, *card3),
+            [card1, card2, card3, card4] => CardPlay::Quad(*card1, *card2, *card3, *card4),
             _ => panic!(
                 "Attempted to make a CardPlay from more than four cards: {:?}",
                 cards

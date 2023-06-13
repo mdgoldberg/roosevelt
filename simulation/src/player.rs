@@ -14,7 +14,7 @@ impl Player {
         }
     }
 
-    pub fn select_action<'a>(
+    pub fn select_action(
         &self,
         _game_state: &GameState,
         available_actions: &[Action],

@@ -47,7 +47,7 @@ impl GameState {
             let available_actions = self.permitted_actions();
             let selected_action = self
                 .current_player()
-                .select_action(&self, &available_actions);
+                .select_action(self, &available_actions);
             self.perform_ingame_action(&selected_action);
         }
         self.start_new_game();
@@ -88,7 +88,7 @@ impl GameState {
                 .collect(),
         };
         // allow passing if there's a card in play
-        if let Some(_) = self.top_card {
+        if self.top_card.is_some() {
             actions.push(Action::Pass);
         }
         // first card play must contain starting card
@@ -370,7 +370,7 @@ impl GameState {
                 .expect("ID that played in last game should still exist");
             player.role = Some(Role::VicePresident);
         }
-        if let Some(&prez_id) = worst_to_first.get(worst_to_first.len() - 1) {
+        if let Some(&prez_id) = worst_to_first.last() {
             let player = self
                 .get_player_mut(prez_id)
                 .expect("ID that played in last game should still exist");
