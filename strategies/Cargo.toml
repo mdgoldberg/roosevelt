@@ -1,0 +1,12 @@
+[package]
+name = "strategies"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+types.workspace = true
+rand.workspace = true
+deckofcards.workspace = true
+log.workspace = true
+regex.workspace = true
+itertools.workspace = true
