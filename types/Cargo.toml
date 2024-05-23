@@ -1,0 +1,11 @@
+[package]
+name = "types"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+deckofcards.workspace = true
+uuid = { workspace = true, features = ["v4"] }
+itertools.workspace = true
+log.workspace = true
+rand.workspace = true

@@ -1,6 +1,6 @@
 use itertools::Itertools;
 
-use crate::types::{Card, CardPlay};
+use crate::{Card, CardPlay};
 
 pub trait Hand {
     fn remove_card(&mut self, card: &Card) -> bool;

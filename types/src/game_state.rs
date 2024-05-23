@@ -1,30 +1,55 @@
-use std::collections::{HashSet, VecDeque};
+use std::{
+    collections::{HashSet, VecDeque},
+    fmt::Display,
+};
 
 use deckofcards::{Deck, Rank, Suit};
 use itertools::Itertools;
 use log;
-use rand::seq::SliceRandom;
-use rand::thread_rng;
+use rand::prelude::*;
 use uuid::Uuid;
 
-use crate::hand::Hand;
-use crate::types::{Action, Card, CardPlay, Event, GameState, Player, Role};
+use crate::{
+    action::Action, card_play::CardPlay, hand::Hand, player::Player, Card, PlayerState,
+    PublicPlayerState, Role, Strategy,
+};
+
+#[derive(Copy, Clone, Debug)]
+pub struct Event {
+    pub player_id: Uuid,
+    pub action: Action,
+}
+
+#[derive(Debug)]
+pub struct GameState {
+    pub table: VecDeque<Player>,
+    pub top_card: Option<CardPlay>,
+    pub history: Vec<Event>,
+}
+
+#[derive(Debug)]
+pub struct PublicInfo {
+    pub top_card: Option<CardPlay>,
+    pub history: Vec<Event>,
+    pub public_table: Vec<PublicPlayerState>,
+}
 
 impl GameState {
-    pub fn new(player_names: &[&str]) -> Self {
+    pub fn new(player_inputs: Vec<(String, Box<dyn Strategy>)>) -> Self {
+        let num_players = player_inputs.len();
         let mut deck = Deck::new();
         deck.reset_shuffle();
-        let hand_size = deck.count() / player_names.len();
-        log::info!(
-            "Num players: {:?}, hand size: {hand_size:?}",
-            player_names.len()
-        );
-        let mut players: Vec<_> = player_names
-            .iter()
-            .map(|name| {
+        let hand_size = deck.count() / num_players;
+        log::info!("Num players: {num_players:?}, hand size: {hand_size:?}");
+        let mut players: Vec<_> = player_inputs
+            .into_iter()
+            .map(|(name, strat)| {
                 let cards: Vec<_> = deck.deal(hand_size).into_iter().map_into().collect();
                 assert_eq!(cards.len(), hand_size);
-                Player::new(name, cards, None)
+                Player {
+                    state: PlayerState::new(name, cards, None),
+                    strategy: strat,
+                }
             })
             .collect();
 
@@ -38,24 +63,17 @@ impl GameState {
         }
     }
 
-    pub fn run_game(&mut self) {
-        assert_eq!(self.history.len(), 0);
-        self.run_pregame();
-        while self.still_playing() {
-            log::info!("{self}");
-            // sleep(Duration::from_secs(1));
-            let available_actions = self.permitted_actions();
-            let selected_action = self
-                .current_player()
-                .select_action(self, &available_actions);
-            self.perform_ingame_action(&selected_action);
+    pub fn public_info(&self) -> PublicInfo {
+        PublicInfo {
+            top_card: self.top_card,
+            history: self.history.clone(),
+            public_table: self.table.iter().map(|p| (&p.state).into()).collect(),
         }
-        self.start_new_game();
     }
 
     pub fn permitted_actions(&self) -> Vec<Action> {
         let current_player = self.current_player();
-        let hand = &current_player.current_hand;
+        let hand = &current_player.state.current_hand;
         let mut actions: Vec<Action> = match self.top_card {
             None => [hand.singles(), hand.pairs(), hand.triples(), hand.quads()]
                 .concat()
@@ -106,13 +124,16 @@ impl GameState {
             });
         }
 
-        // log::info!("Actions for {}: {actions}", current_player.name);
+        log::debug!(
+            "Available actions for {}: {actions:?}",
+            current_player.state.name
+        );
         actions
     }
 
     pub fn perform_ingame_action(&mut self, action: &Action) {
         let player = self.current_player_mut();
-        let player_id = player.id;
+        let player_id = player.state.id;
         match action {
             Action::SendCard { .. } => {
                 panic!("Attempted to send a card in the middle of the game!");
@@ -120,7 +141,7 @@ impl GameState {
             Action::Pass => {}
             Action::PlayCards { card_play } => {
                 for card in &card_play.to_vec() {
-                    let removed = player.current_hand.remove_card(card);
+                    let removed = player.state.current_hand.remove_card(card);
                     assert!(
                         removed,
                         "Attempted to play a card {:?} that wasn't in the hand!",
@@ -132,7 +153,7 @@ impl GameState {
                 self.top_card = Some(*card_play);
             }
         }
-        log::info!("{} did: {action}", self.current_player());
+        log::info!("{} did: {action}", self.current_player().state.name);
         // record event in history
         let event = Event {
             player_id,
@@ -142,7 +163,7 @@ impl GameState {
 
         // also handles clearing the deck if necessary
         self.next_players_turn();
-        while self.current_player().current_hand.is_empty() {
+        while self.current_player().state.current_hand.is_empty() {
             self.next_players_turn();
         }
     }
@@ -151,7 +172,7 @@ impl GameState {
         self.table.rotate_left(1);
 
         // clear the deck if necessary
-        if self.last_played_player() == Some(self.current_player()) {
+        if self.last_played_player().map(|p| &p.state) == Some(&self.current_player().state) {
             self.top_card = None;
         }
     }
@@ -164,11 +185,15 @@ impl GameState {
     }
 
     pub fn get_player(&self, id: Uuid) -> Option<&Player> {
-        self.table.iter().find(|p| p.id == id)
+        self.table.iter().find(|p| p.state.id == id)
     }
 
     pub fn get_role(&self, role: Role) -> Option<&Player> {
-        self.table.iter().find(|p| p.role == Some(role))
+        self.table.iter().find(|p| p.state.role == Some(role))
+    }
+
+    pub fn get_role_mut(&mut self, role: Role) -> Option<&mut Player> {
+        self.table.iter_mut().find(|p| p.state.role == Some(role))
     }
 
     pub fn current_player(&self) -> &Player {
@@ -177,14 +202,14 @@ impl GameState {
             .expect("Should always have a current player")
     }
 
-    fn get_player_mut(&mut self, id: Uuid) -> Option<&mut Player> {
-        self.table.iter_mut().find(|p| p.id == id)
-    }
-
-    fn current_player_mut(&mut self) -> &mut Player {
+    pub fn current_player_mut(&mut self) -> &mut Player {
         self.table
             .front_mut()
             .expect("Should always have a current player")
+    }
+
+    fn get_player_mut(&mut self, id: Uuid) -> Option<&mut Player> {
+        self.table.iter_mut().find(|p| p.state.id == id)
     }
 
     fn last_played_player(&self) -> Option<&Player> {
@@ -208,9 +233,9 @@ impl GameState {
             if let Some(starter) = self
                 .table
                 .iter()
-                .find(|player| player.current_hand.contains(&three_card))
+                .find(|player| player.state.current_hand.contains(&three_card))
             {
-                starter_id_and_card = Some((starter.id, three_card));
+                starter_id_and_card = Some((starter.state.id, three_card));
                 break;
             }
         }
@@ -222,7 +247,7 @@ impl GameState {
         let idx = self
             .table
             .iter()
-            .position(|p| p.id == starter_id)
+            .position(|p| p.state.id == starter_id)
             .expect("Someone must have one of these cards");
         self.table.rotate_left(idx);
         card
@@ -234,8 +259,13 @@ impl GameState {
         president_role: Role,
         num_cards: usize,
     ) -> Vec<Event> {
+        let public_info = self.public_info();
+
         // generate events
-        let events = match (self.get_role(asshole_role), self.get_role(president_role)) {
+        let events = match (
+            self.get_role(asshole_role).map(|s| s.state.clone()),
+            self.get_role_mut(president_role),
+        ) {
             (None, None) => {
                 log::warn!("No players found for either role, so not swapping any cards: {asshole_role:?}, {president_role:?}");
                 vec![]
@@ -252,7 +282,7 @@ impl GameState {
                 let mut events = Vec::with_capacity(4);
 
                 let asshole_id = asshole.id;
-                let president_id = president.id;
+                let president_id = president.state.id;
                 events.extend(asshole.top_k_cards(num_cards).iter().map(|&card| Event {
                     player_id: asshole_id,
                     action: Action::SendCard {
@@ -262,8 +292,9 @@ impl GameState {
                 }));
 
                 let mut sent_cards: HashSet<Card> = HashSet::new();
-                events.extend((0..num_cards).map(|_| {
+                for _ in 0..num_cards {
                     let available_actions: Vec<_> = president
+                        .state
                         .current_hand
                         .iter()
                         .filter_map(|&card| {
@@ -277,20 +308,25 @@ impl GameState {
                             }
                         })
                         .collect();
+
                     // president/VP should send bottom cards strategically
-                    let action = president.select_action(self, &available_actions);
+                    let action = president.strategy.select_action(
+                        &president.state,
+                        &public_info,
+                        &available_actions,
+                    );
                     if let Action::SendCard { card, .. } = action {
                         sent_cards.insert(card);
                     }
-                    Event {
+                    events.push(Event {
                         player_id: president_id,
                         action,
-                    }
-                }));
-
+                    })
+                }
                 events
             }
         };
+
         // process events
         for event in &events {
             if let Event {
@@ -301,12 +337,12 @@ impl GameState {
                 let send_player = self
                     .get_player_mut(*player_id)
                     .expect("Card-send event recorded by unknown player");
-                send_player.current_hand.remove_card(card);
-                log::info!("{} did: {}", send_player, event.action);
+                send_player.state.current_hand.remove_card(card);
+                log::info!("{} did: {}", send_player.state.name, event.action);
                 let rec_player = self
                     .get_player_mut(*to)
                     .expect("Tried to send a card to unknown player");
-                rec_player.current_hand.push(*card);
+                rec_player.state.current_hand.push(*card);
             }
         }
         events
@@ -315,7 +351,7 @@ impl GameState {
     pub fn still_playing(&self) -> bool {
         self.table
             .iter()
-            .filter(|player| !player.current_hand.is_empty())
+            .filter(|player| !player.state.current_hand.is_empty())
             .count()
             >= 2
     }
@@ -330,8 +366,8 @@ impl GameState {
 
         // asshole may still have cards left
         for player in &self.table {
-            if !player.current_hand.is_empty() {
-                worst_to_first.push(player.id);
+            if !player.state.current_hand.is_empty() {
+                worst_to_first.push(player.state.id);
             }
         }
 
@@ -343,12 +379,17 @@ impl GameState {
             }
         }
 
-        let results_str = worst_to_first.iter().rev().enumerate().map(|(idx, p_id)| {
-            let player = self
-                .get_player(*p_id)
-                .expect("ID that played in last game should still exist");
-            format!("{}. {}", idx + 1, player.name)
-        }).join("\n");
+        let results_str = worst_to_first
+            .iter()
+            .rev()
+            .enumerate()
+            .map(|(idx, p_id)| {
+                let player = self
+                    .get_player(*p_id)
+                    .expect("ID that played in last game should still exist");
+                format!("{}. {}", idx + 1, player.state.name)
+            })
+            .join("\n");
         log::info!("Game over! Results:\n{results_str}");
 
         // NOTE: assumes all roles are being used
@@ -356,25 +397,25 @@ impl GameState {
             let player = self
                 .get_player_mut(asshole_id)
                 .expect("ID that played in last game should still exist");
-            player.role = Some(Role::Asshole);
+            player.state.role = Some(Role::Asshole);
         }
         if let Some(&vice_asshole_id) = worst_to_first.get(1) {
             let player = self
                 .get_player_mut(vice_asshole_id)
                 .expect("ID that played in last game should still exist");
-            player.role = Some(Role::ViceAsshole);
+            player.state.role = Some(Role::ViceAsshole);
         }
         if let Some(&vp_id) = worst_to_first.get(worst_to_first.len() - 2) {
             let player = self
                 .get_player_mut(vp_id)
                 .expect("ID that played in last game should still exist");
-            player.role = Some(Role::VicePresident);
+            player.state.role = Some(Role::VicePresident);
         }
         if let Some(&prez_id) = worst_to_first.last() {
             let player = self
                 .get_player_mut(prez_id)
                 .expect("ID that played in last game should still exist");
-            player.role = Some(Role::President);
+            player.state.role = Some(Role::President);
         }
 
         self.top_card = None;
@@ -384,9 +425,37 @@ impl GameState {
         deck.reset_shuffle();
         let hand_size = deck.count() / self.table.len();
         for player in self.table.iter_mut() {
-            player.current_hand = deck.deal(hand_size).into_iter().map_into().collect();
+            player.state.current_hand = deck.deal(hand_size).into_iter().map_into().collect();
         }
 
         log::info!("New game!");
+    }
+}
+
+impl Display for GameState {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let top_card_str = self
+            .top_card
+            .map(|card_play| format!("{card_play}"))
+            .unwrap_or("None".to_string());
+        let players_str = self
+            .table
+            .iter()
+            .map(|player| {
+                format!(
+                    "{}: {} cards left: {}",
+                    player.state.name,
+                    player.state.current_hand.len(),
+                    player
+                        .state
+                        .current_hand
+                        .iter()
+                        .sorted()
+                        .map(|c| format!("{c}"))
+                        .join(",")
+                )
+            })
+            .join("\n");
+        write!(f, "\nTop Card: {}\nTable:\n{}", top_card_str, players_str)
     }
 }

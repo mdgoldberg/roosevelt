@@ -1,4 +1,4 @@
 [toolchain]
-channel = "stable"
-date = "2023-06-05"
+channel = "nightly"
+date = "2024-04-29"
 components = ["rust-analyzer"]

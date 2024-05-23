@@ -1,25 +1,41 @@
+pub mod input_strategy;
+
 use deckofcards::{Rank, Suit};
-use itertools::Itertools;
-use uuid::Uuid;
+use rand::{rngs::ThreadRng, seq::SliceRandom};
+use types::{Action, Strategy};
 
-use crate::types::{Action, Card, GameState, Player, Role};
+pub use crate::input_strategy::InputStrategy;
 
-impl Player {
-    pub fn new(name: &str, dealt_hand: Vec<Card>, role: Option<Role>) -> Self {
-        Self {
-            id: Uuid::new_v4(),
-            name: name.to_string(),
-            role,
-            current_hand: dealt_hand,
-        }
-    }
+#[derive(Debug, Default)]
+pub struct RandomStrategy {
+    rng: ThreadRng,
+}
 
-    pub fn select_action(
-        &self,
-        _game_state: &GameState,
+impl Strategy for RandomStrategy {
+    fn select_action(
+        &mut self,
+        _private_info: &types::PlayerState,
+        _public_info: &types::game_state::PublicInfo,
         available_actions: &[Action],
     ) -> Action {
+        *available_actions
+            .choose(&mut self.rng)
+            .expect("Should always have at least one action to choose from")
+    }
+}
+
+#[derive(Debug, Default)]
+pub struct DefaultStrategy {}
+
+impl Strategy for DefaultStrategy {
+    fn select_action(
+        &mut self,
+        _private_info: &types::PlayerState,
+        _public_info: &types::game_state::PublicInfo,
+        available_actions: &[types::Action],
+    ) -> types::Action {
         // always play worst allowable card play
+        // TODO: play low sets when there's no top card
         if let Some(card_play_action) = available_actions
             .iter()
             .filter_map(|action| {
@@ -38,7 +54,7 @@ impl Player {
         // always send worst card
         if let Some(pass_card_action) = available_actions
             .iter()
-            .filter_map(|action| {
+            .filter_map(|action| -> Option<(&Action, &types::Card)> {
                 if let Action::SendCard { card, .. } = action {
                     let is_three_of_clubs =
                         card.rank() == Rank::Three && card.suit() == Suit::Clubs;
@@ -57,25 +73,8 @@ impl Player {
             return *pass_card_action;
         }
 
-        available_actions[0]
-    }
-
-    pub fn top_k_cards(&self, num_cards: usize) -> Vec<Card> {
-        self.current_hand
-            .iter()
-            .sorted()
-            .rev()
-            .take(num_cards)
-            .copied()
-            .collect()
-    }
-
-    pub fn bottom_k_cards(&self, num_cards: usize) -> Vec<Card> {
-        self.current_hand
-            .iter()
-            .sorted()
-            .take(num_cards)
-            .copied()
-            .collect()
+        *available_actions
+            .get(0)
+            .expect("Always should have an action available when this is called")
     }
 }
