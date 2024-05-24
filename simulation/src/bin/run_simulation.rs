@@ -10,6 +10,8 @@ use types::{GameState, Strategy};
 struct Params {
     #[arg(short, long, default_value = "config.yaml")]
     config: PathBuf,
+    #[arg(short, long)]
+    delay_ms: Option<u64>,
 }
 
 #[derive(Deserialize)]
@@ -78,6 +80,6 @@ fn main() {
         .collect();
     let mut game_state = GameState::new(player_inputs);
     loop {
-        run_game(&mut game_state);
+        run_game(&mut game_state, args.delay_ms);
     }
 }
