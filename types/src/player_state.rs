@@ -65,7 +65,8 @@ impl Display for PlayerState {
             f,
             "{} ({:?}) Hand: {}",
             self.name,
-            self.role,
+            self.role
+                .map_or_else(|| "No Role".to_string(), |role| role.to_string()),
             self.current_hand.iter().sorted().join(", ")
         )
     }

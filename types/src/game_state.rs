@@ -393,6 +393,12 @@ impl GameState {
         log::info!("Game over! Results:\n{results_str}");
 
         // NOTE: assumes all roles are being used
+
+        // clear roles before assigning new roles
+        for player in self.table.iter_mut() {
+            player.state.role = None;
+        }
+
         if let Some(&asshole_id) = worst_to_first.get(0) {
             let player = self
                 .get_player_mut(asshole_id)
