@@ -1,4 +1,4 @@
-use std::{cmp::Ordering, fmt::Display};
+use std::{cmp::Ordering, fmt::Display, iter::FusedIterator};
 
 use deckofcards::Rank;
 use itertools::Itertools;
@@ -18,10 +18,7 @@ impl Display for CardPlay {
         write!(
             f,
             "({})",
-            self.to_vec()
-                .iter()
-                .map(|card| format!("{}", card))
-                .join(", ")
+            self.cards().map(|card| format!("{}", card)).join(", ")
         )
     }
 }
@@ -66,13 +63,15 @@ impl CardPlay {
             ),
         }
     }
-    pub fn to_vec(self: &CardPlay) -> Vec<Card> {
-        match self {
-            CardPlay::Single(card) => vec![*card],
-            CardPlay::Pair(card1, card2) => vec![*card1, *card2],
-            CardPlay::Triple(card1, card2, card3) => vec![*card1, *card2, *card3],
-            CardPlay::Quad(card1, card2, card3, card4) => vec![*card1, *card2, *card3, *card4],
+    pub fn cards(&self) -> CardPlayCards<'_> {
+        CardPlayCards {
+            card_play: self,
+            idx: 0,
         }
+    }
+
+    pub fn to_vec(&self) -> Vec<Card> {
+        self.cards().collect()
     }
 
     pub fn size(&self) -> usize {
@@ -102,3 +101,48 @@ impl CardPlay {
         }
     }
 }
+
+pub struct CardPlayCards<'a> {
+    card_play: &'a CardPlay,
+    idx: usize,
+}
+
+impl<'a> Iterator for CardPlayCards<'a> {
+    type Item = Card;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        let card = match (self.card_play, self.idx) {
+            (CardPlay::Single(card), 0) => Some(*card),
+            (CardPlay::Pair(card1, card2), idx) => match idx {
+                0 => Some(*card1),
+                1 => Some(*card2),
+                _ => None,
+            },
+            (CardPlay::Triple(card1, card2, card3), idx) => match idx {
+                0 => Some(*card1),
+                1 => Some(*card2),
+                2 => Some(*card3),
+                _ => None,
+            },
+            (CardPlay::Quad(card1, card2, card3, card4), idx) => match idx {
+                0 => Some(*card1),
+                1 => Some(*card2),
+                2 => Some(*card3),
+                3 => Some(*card4),
+                _ => None,
+            },
+            _ => None,
+        }?;
+        self.idx += 1;
+        Some(card)
+    }
+
+    fn size_hint(&self) -> (usize, Option<usize>) {
+        let remaining = self.card_play.size().saturating_sub(self.idx);
+        (remaining, Some(remaining))
+    }
+}
+
+impl<'a> ExactSizeIterator for CardPlayCards<'a> {}
+
+impl<'a> FusedIterator for CardPlayCards<'a> {}

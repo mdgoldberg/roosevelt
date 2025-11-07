@@ -117,7 +117,9 @@ impl GameState {
         if is_first_cardplay {
             let (_, starting_card) = self.starting_player_and_card();
             actions.retain(|action| match action {
-                Action::PlayCards { card_play } => card_play.to_vec().contains(&starting_card),
+                Action::PlayCards { card_play } => {
+                    card_play.cards().any(|card| card == starting_card)
+                }
                 _ => false,
             });
         }
@@ -138,8 +140,8 @@ impl GameState {
             }
             Action::Pass => {}
             Action::PlayCards { card_play } => {
-                for card in &card_play.to_vec() {
-                    let removed = player.state.current_hand.remove_card(card);
+                for card in card_play.cards() {
+                    let removed = player.state.current_hand.remove_card(&card);
                     assert!(
                         removed,
                         "Attempted to play a card {:?} that wasn't in the hand!",
