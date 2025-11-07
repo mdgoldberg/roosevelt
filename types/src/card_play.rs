@@ -34,19 +34,7 @@ impl Ord for CardPlay {
         if std::mem::discriminant(self) != std::mem::discriminant(other) {
             panic!("Cannot compare CardPlay variants of different types");
         }
-        let our_card = match self {
-            CardPlay::Single(card) => card,
-            CardPlay::Pair(card, _) => card,
-            CardPlay::Triple(card, _, _) => card,
-            CardPlay::Quad(card, _, _, _) => card,
-        };
-        let their_card = match other {
-            CardPlay::Single(card) => card,
-            CardPlay::Pair(card, _) => card,
-            CardPlay::Triple(card, _, _) => card,
-            CardPlay::Quad(card, _, _, _) => card,
-        };
-        our_card.cmp(their_card)
+        self.value().cmp(&other.value())
     }
 }
 
