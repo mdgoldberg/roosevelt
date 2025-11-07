@@ -26,8 +26,10 @@ impl Display for Action {
 }
 
 impl From<&CardPlay> for Action {
-    fn from(&card_play: &CardPlay) -> Self {
-        Action::PlayCards { card_play }
+    fn from(card_play: &CardPlay) -> Self {
+        Action::PlayCards {
+            card_play: *card_play,
+        }
     }
 }
 
