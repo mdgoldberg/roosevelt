@@ -1,0 +1,101 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  format:
+    name: Format
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions-rust-lang/setup-rust-toolchain@v1
+        with:
+          toolchain: stable
+          components: rustfmt
+      - name: Cache Cargo registry
+        uses: actions/cache@v4
+        with:
+          path: ~/.cargo/registry
+          key: ${{ runner.os }}-cargo-registry-${{ hashFiles('**/Cargo.toml') }}
+      - name: Check formatting
+        run: cargo fmt --all -- --check
+
+  clippy:
+    name: Clippy
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions-rust-lang/setup-rust-toolchain@v1
+        with:
+          toolchain: stable
+          components: clippy
+      - name: Cache Cargo registry
+        uses: actions/cache@v4
+        with:
+          path: ~/.cargo/registry
+          key: ${{ runner.os }}-cargo-registry-${{ hashFiles('**/Cargo.toml') }}
+      - name: Cache Cargo build (debug)
+        uses: actions/cache@v4
+        with:
+          path: target/debug
+          key: ${{ runner.os }}-cargo-build-debug-${{ hashFiles('**/Cargo.toml') }}
+      - name: Cache Cargo build (release)
+        uses: actions/cache@v4
+        with:
+          path: target/release
+          key: ${{ runner.os }}-cargo-build-release-${{ hashFiles('**/Cargo.toml') }}
+      - name: Run clippy
+        run: cargo clippy --all-targets --all-features -- -D warnings
+
+  build-and-test:
+    name: Build & Test (Debug)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions-rust-lang/setup-rust-toolchain@v1
+        with:
+          toolchain: stable
+      - name: Cache Cargo registry
+        uses: actions/cache@v4
+        with:
+          path: ~/.cargo/registry
+          key: ${{ runner.os }}-cargo-registry-${{ hashFiles('**/Cargo.toml') }}
+      - name: Cache Cargo build (debug)
+        uses: actions/cache@v4
+        with:
+          path: target/debug
+          key: ${{ runner.os }}-cargo-build-debug-${{ hashFiles('**/Cargo.toml') }}
+      - name: Build
+        run: cargo build --all
+      - name: Test
+        run: cargo test --all
+
+  build-release:
+    name: Build (Release)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions-rust-lang/setup-rust-toolchain@v1
+        with:
+          toolchain: stable
+      - name: Cache Cargo registry
+        uses: actions/cache@v4
+        with:
+          path: ~/.cargo/registry
+          key: ${{ runner.os }}-cargo-registry-${{ hashFiles('**/Cargo.toml') }}
+      - name: Cache Cargo build (debug)
+        uses: actions/cache@v4
+        with:
+          path: target/debug
+          key: ${{ runner.os }}-cargo-build-debug-${{ hashFiles('**/Cargo.toml') }}
+      - name: Cache Cargo build (release)
+        uses: actions/cache@v4
+        with:
+          path: target/release
+          key: ${{ runner.os }}-cargo-build-release-${{ hashFiles('**/Cargo.toml') }}
+      - name: Build release
+        run: cargo build --all --release
