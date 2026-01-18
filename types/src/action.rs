@@ -18,7 +18,8 @@ impl Display for Action {
             Action::SendCard { card, .. } => format!("Send {card}"),
             Action::Pass => "Pass".to_string(),
             Action::PlayCards { card_play } => {
-                format!("Play {}", card_play.to_vec().iter().join(","))
+                let cards = card_play.cards().map(|card| format!("{card}")).join(",");
+                format!("Play {cards}")
             }
         };
         write!(f, "{}", string)

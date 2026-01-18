@@ -214,23 +214,21 @@ fn play_action_from_captures(caps: &Captures, actions: &[Action]) -> Result<Acti
     let &card_play = actions
         .iter()
         .find_map(|act| {
-            if let Action::PlayCards { card_play } = act {
-                // correct # of cards?
-                if card_play.size() != cards.len() {
-                    return None;
-                }
-                // rank matches and all suits are accounted for?
-                let cp_cards = card_play.to_vec();
-                let suits: Vec<Suit> = cards.iter().filter_map(|c| c.1).collect();
-                if card_play.rank() == rank
-                    && suits
-                        .iter()
-                        .all(|suit| cp_cards.iter().any(|c| c.suit() == *suit))
-                {
-                    Some(card_play)
-                } else {
-                    None
-                }
+            let Action::PlayCards { card_play } = act else {
+                return None;
+            };
+            // correct # of cards?
+            if card_play.size() != cards.len() {
+                return None;
+            }
+            // rank matches and all suits are accounted for?
+            let suits: Vec<Suit> = cards.iter().filter_map(|c| c.1).collect();
+            if card_play.rank() == rank
+                && suits
+                    .iter()
+                    .all(|suit| card_play.cards().any(|c| c.suit() == *suit))
+            {
+                Some(card_play)
             } else {
                 None
             }
