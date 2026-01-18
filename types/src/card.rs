@@ -51,16 +51,7 @@ impl Card {
 
 impl PartialOrd for Card {
     fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
-        if self.card.rank == other.card.rank {
-            return Some(Ordering::Equal);
-        }
-        if self.card.rank == Rank::Two {
-            return Some(Ordering::Greater);
-        }
-        if other.card.rank == Rank::Two {
-            return Some(Ordering::Less);
-        }
-        Some(self.card.rank.ordinal().cmp(&other.card.rank.ordinal()))
+        Some(self.cmp(other))
     }
 }
 

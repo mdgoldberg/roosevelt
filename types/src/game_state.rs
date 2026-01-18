@@ -117,9 +117,7 @@ impl GameState {
         if is_first_cardplay {
             let (_, starting_card) = self.starting_player_and_card();
             actions.retain(|action| match action {
-                Action::PlayCards { card_play } => {
-                    card_play.to_vec().iter().any(|&card| card == starting_card)
-                }
+                Action::PlayCards { card_play } => card_play.to_vec().contains(&starting_card),
                 _ => false,
             });
         }
@@ -217,7 +215,7 @@ impl GameState {
             .iter()
             .filter(|ev| matches!(ev.action, Action::PlayCards { .. }))
             .map(|ev| ev.player_id)
-            .last()
+            .next_back()
             .and_then(|player_id| self.get_player(player_id))
     }
 
@@ -399,7 +397,7 @@ impl GameState {
             player.state.role = None;
         }
 
-        if let Some(&asshole_id) = worst_to_first.get(0) {
+        if let Some(&asshole_id) = worst_to_first.first() {
             let player = self
                 .get_player_mut(asshole_id)
                 .expect("ID that played in last game should still exist");

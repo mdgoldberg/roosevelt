@@ -15,7 +15,7 @@ impl Strategy for InputStrategy {
         public_info: &PublicInfo,
         available_actions: &[Action],
     ) -> Action {
-        print_public_info(&public_info);
+        print_public_info(public_info);
         println!("Private info: {private_info}");
         println!(
             "Available actions: {}",
@@ -25,7 +25,7 @@ impl Strategy for InputStrategy {
         // if only one available action, do it
         if available_actions.len() == 1 {
             let action = *available_actions
-                .get(0)
+                .first()
                 .expect("Guaranteed to have an action available");
             log::info!("Only have one action available: {action}");
             return action;
@@ -55,7 +55,7 @@ fn print_public_info(info: &PublicInfo) {
                 }
                 match event.action {
                     Action::PlayCards { card_play } => Some(card_play),
-                    _ => return None,
+                    _ => None,
                 }
             })
             .collect();
@@ -82,7 +82,7 @@ fn select_action_from_stdin(buf: &mut String, actions: &[Action]) -> Result<Acti
     print!("Your action? >> ");
     let _ = io::stdout().flush();
     match io::stdin().read_line(buf) {
-        Ok(_) => select_action_from_str(&buf, actions),
+        Ok(_) => select_action_from_str(buf, actions),
         Err(err) => {
             buf.clear();
             Err(format!("Error reading line from stdin: {err}"))
@@ -132,9 +132,7 @@ fn _get_action_from_regex(
     re: Regex,
     callback: for<'a, 'b, 'c> fn(&'a regex::Captures<'b>, &'c [Action]) -> Result<Action, String>,
 ) -> Option<Result<Action, String>> {
-    let Some(caps) = re.captures(input) else {
-        return None;
-    };
+    let caps = re.captures(input)?;
 
     Some(callback(&caps, actions))
 }
@@ -147,20 +145,19 @@ fn send_action_from_captures(caps: &Captures, actions: &[Action]) -> Result<Acti
     )?;
     actions
         .iter()
-        .filter(|act| {
+        .find(|act| {
             if let Action::SendCard { card, .. } = act {
                 card.rank() == rank && suit.map(|s| s == card.suit()).unwrap_or(true)
             } else {
                 false
             }
         })
-        .next()
         .copied()
         .ok_or_else(|| format!("No card matching {rank:?}"))
 }
 
 fn pass_action_from_captures(_caps: &Captures, actions: &[Action]) -> Result<Action, String> {
-    if actions.iter().any(|act| *act == Action::Pass) {
+    if actions.contains(&Action::Pass) {
         Ok(Action::Pass)
     } else {
         Err("Attempted to pass at a time when passing is not a permitted action".to_string())
@@ -206,40 +203,43 @@ fn play_action_from_captures(caps: &Captures, actions: &[Action]) -> Result<Acti
     let suit_counts = cards.iter().filter_map(|c| c.1).counts_by(|c| c);
     if let Some((mode_suit, mode_suit_count)) = suit_counts.iter().max_by_key(|s| s.1) {
         if *mode_suit_count > 1 {
-            let rank = cards.get(0).expect("Guaranteed to have at least 1 card").0;
+            let rank = cards.first().expect("Guaranteed to have at least 1 card").0;
             return Err(format!(
                     "Attempted to play multiple cards of rank {rank:?}, but {mode_suit_count} are the same suit {mode_suit:?}"
                     ));
         }
     }
 
-    let rank = cards.get(0).expect("Guaranteed at least one card").0;
+    let rank = cards.first().expect("Guaranteed at least one card").0;
     let &card_play = actions
         .iter()
-        .filter_map(|act| {
+        .find_map(|act| {
             if let Action::PlayCards { card_play } = act {
-                Some(card_play)
+                // correct # of cards?
+                if card_play.size() != cards.len() {
+                    return None;
+                }
+                // rank matches and all suits are accounted for?
+                let cp_cards = card_play.to_vec();
+                let suits: Vec<Suit> = cards.iter().filter_map(|c| c.1).collect();
+                if card_play.rank() == rank
+                    && suits
+                        .iter()
+                        .all(|suit| cp_cards.iter().any(|c| c.suit() == *suit))
+                {
+                    Some(card_play)
+                } else {
+                    None
+                }
             } else {
                 None
             }
         })
-        // correct # of cards?
-        .filter(|cp| cp.size() == cards.len())
-        // rank matches and all suits are accounted for?
-        .filter(|cp| {
-            let cp_cards = cp.to_vec();
-            let suits: Vec<Suit> = cards.iter().filter_map(|c| c.1).collect();
-            cp.rank() == rank
-                && suits
-                    .iter()
-                    .all(|suit| cp_cards.iter().any(|c| c.suit() == *suit))
-        })
-        .next()
-        .ok_or_else(|| format!("Unable to find a permitted action matching the input string"))?;
+        .ok_or_else(|| "Unable to find a permitted action matching the input string".to_string())?;
 
     log::debug!("From actions {actions:?}, given string {input:?}, selected {card_play:?}");
 
-    return Ok(Action::PlayCards { card_play });
+    Ok(Action::PlayCards { card_play })
 }
 
 fn parse_card(card_str: &str) -> Result<(Rank, Option<Suit>), String> {
@@ -248,8 +248,7 @@ fn parse_card(card_str: &str) -> Result<(Rank, Option<Suit>), String> {
         return Err(format!("Unable to parse card from {card_str}"));
     };
     let rank = rank_from_rank_str(
-        &caps
-            .name("rank")
+        caps.name("rank")
             .expect("Rank should always exist for send")
             .as_str(),
     )?;

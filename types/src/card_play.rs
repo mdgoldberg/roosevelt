@@ -5,7 +5,7 @@ use itertools::Itertools;
 
 use crate::card::Card;
 
-#[derive(PartialEq, Eq, Copy, Clone, Debug, Ord)]
+#[derive(PartialEq, Eq, Copy, Clone, Debug)]
 pub enum CardPlay {
     Single(Card),
     Pair(Card, Card),
@@ -28,8 +28,14 @@ impl Display for CardPlay {
 
 impl PartialOrd for CardPlay {
     fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+        Some(self.cmp(other))
+    }
+}
+
+impl Ord for CardPlay {
+    fn cmp(&self, other: &Self) -> Ordering {
         if std::mem::discriminant(self) != std::mem::discriminant(other) {
-            return None;
+            panic!("Cannot compare CardPlay variants of different types");
         }
         let our_card = match self {
             CardPlay::Single(card) => card,
@@ -43,7 +49,7 @@ impl PartialOrd for CardPlay {
             CardPlay::Triple(card, _, _) => card,
             CardPlay::Quad(card, _, _, _) => card,
         };
-        our_card.partial_cmp(their_card)
+        our_card.cmp(their_card)
     }
 }
 
