@@ -71,7 +71,8 @@ fn main() {
         .map(|player_conf| {
             (
                 player_conf.name,
-                (&player_conf.strategy)
+                player_conf
+                    .strategy
                     .parse::<Strategies>()
                     .expect("Unable to parse strategy")
                     .into(),

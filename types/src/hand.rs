@@ -14,7 +14,7 @@ fn _card_plays_for_size(hand: &[Card], card_play_size: usize) -> Vec<CardPlay> {
     hand.iter()
         .combinations(card_play_size)
         .filter_map(|cards| {
-            let rank = cards.get(0)?.rank();
+            let rank = cards.first()?.rank();
             if cards.iter().all(|c| c.rank() == rank) {
                 Some(CardPlay::from_cards(&cards))
             } else {

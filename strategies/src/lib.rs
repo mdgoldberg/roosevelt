@@ -74,7 +74,7 @@ impl Strategy for DefaultStrategy {
         }
 
         *available_actions
-            .get(0)
+            .first()
             .expect("Always should have an action available when this is called")
     }
 }
