@@ -1,0 +1,20 @@
+# Sample configuration for Roosevelt card game simulation
+#
+# Strategy options: default, random, input
+
+game_config:
+  players:
+    - name: "Alice"
+      strategy: "default"
+    - name: "Bob"
+      strategy: "random"
+    - name: "Charlie"
+      strategy: "default"
+    - name: "David"
+      strategy: "random"
+    - name: "Eve"
+      strategy: "input"
+  delay_ms: 500 # Optional: delay between moves (milliseconds)
+
+# Optional: database URL (sqlite::memory: for in-memory, sqlite:roosevelt.db for persistence)
+database: sqlite:roosevelt.db
