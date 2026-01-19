@@ -82,6 +82,15 @@ impl PlayerState {
         }
     }
 
+    pub fn new_with_id(id: Uuid, name: String, dealt_hand: Vec<Card>, role: Option<Role>) -> Self {
+        Self {
+            id,
+            name,
+            role,
+            current_hand: dealt_hand,
+        }
+    }
+
     pub fn top_k_cards(&self, num_cards: usize) -> Vec<Card> {
         self.current_hand
             .iter()
