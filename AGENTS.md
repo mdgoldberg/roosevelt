@@ -14,7 +14,6 @@ roosevelt/
 ├── Cargo.lock
 ├── rust-toolchain.toml  # Stable + rust-analyzer
 ├── rustfmt.toml         # Import grouping rules
-├── notes.txt            # Project todo
 ├── types/               # Core data structures
 │   ├── src/
 │   │   ├── action.rs
