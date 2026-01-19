@@ -4,7 +4,6 @@ use std::str::FromStr;
 
 use clap::Parser;
 use serde::{Deserialize, Serialize};
-use tokio;
 
 use database::DatabaseRecorder;
 use database::{DatabaseConfig, NoopRecorder};
