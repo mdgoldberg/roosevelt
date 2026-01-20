@@ -19,11 +19,20 @@ impl DatabaseConfig {
     }
 
     pub async fn create_pool(&self) -> Result<sqlx::SqlitePool, sqlx::Error> {
-        sqlx::SqlitePool::connect_with(
+        let pool = sqlx::SqlitePool::connect_with(
             sqlx::sqlite::SqliteConnectOptions::new()
                 .filename(&self.url)
-                .create_if_missing(true),
+                .create_if_missing(true)
+                .journal_mode(sqlx::sqlite::SqliteJournalMode::Wal)
+                .synchronous(sqlx::sqlite::SqliteSynchronous::Normal),
         )
-        .await
+        .await?;
+
+        // Increase cache size for better performance with bulk writes
+        sqlx::query("PRAGMA cache_size = -128000")
+            .execute(&pool)
+            .await?;
+
+        Ok(pool)
     }
 }
