@@ -1,10 +1,57 @@
 use std::{thread::sleep, time::Duration};
+use types::game_state::GameState;
+use types::{Action, Player};
 
-use types::GameState;
+pub async fn run_game(
+    game_state: &mut GameState,
+    delay_ms: Option<u64>,
+    recorder: &dyn database::GameRecorder,
+    game_config: Option<serde_json::Value>,
+) -> Result<(), Box<dyn std::error::Error>> {
+    let seed = generate_deck_seed();
 
-pub fn run_game(game_state: &mut GameState, delay_ms: Option<u64>) {
-    assert_eq!(game_state.history.len(), 0);
-    game_state.run_pregame();
+    let game_id = recorder
+        .record_game(&database::models::GameRecord {
+            id: None,
+            started_at: chrono::Utc::now(),
+            finished_at: None,
+            num_players: game_state.table.len(),
+            deck_seed: format!("{:x}", seed),
+            player_order: game_state.table.iter().map(|p| p.state.id).collect(),
+            configuration: game_config,
+        })
+        .await?;
+
+    let pregame_events = game_state.run_pregame();
+
+    let mut turn_order = 0;
+    for event in &pregame_events {
+        let (action_type, card_play_json, target_player_id) = match &event.action {
+            Action::SendCard { card, to } => (
+                "SendCard".to_string(),
+                Some(serialize_card_play_single(card)),
+                Some(to),
+            ),
+            _ => (action_type_to_string(&event.action), None, None),
+        };
+
+        recorder
+            .record_action(&database::models::ActionRecord {
+                id: None,
+                game_id,
+                player_id: event.player_id,
+                action_type,
+                card_play: card_play_json.map(|v| serde_json::to_value(&v).unwrap()),
+                target_player_id: target_player_id.copied(),
+                turn_order: turn_order + 1,
+                phase: "pregame".to_string(),
+                created_at: chrono::Utc::now(),
+            })
+            .await?;
+
+        turn_order += 1;
+    }
+
     while game_state.still_playing() {
         log::debug!("{game_state}");
         if let Some(ms) = delay_ms {
@@ -18,7 +65,132 @@ pub fn run_game(game_state: &mut GameState, delay_ms: Option<u64>) {
             &public_info,
             &available_actions,
         );
+
+        let (action_type, card_play_json, target_player_id) = match &selected_action {
+            Action::PlayCards { card_play } => (
+                "PlayCards".to_string(),
+                Some(serialize_card_play(card_play)),
+                None,
+            ),
+            Action::SendCard { card, to } => (
+                "SendCard".to_string(),
+                Some(serialize_card_play_single(card)),
+                Some(to),
+            ),
+            Action::Pass => ("Pass".to_string(), None, None),
+        };
+
+        recorder
+            .record_action(&database::models::ActionRecord {
+                id: None,
+                game_id,
+                player_id: current_player.state.id,
+                action_type,
+                card_play: card_play_json.map(|v| serde_json::to_value(&v).unwrap()),
+                target_player_id: target_player_id.copied(),
+                turn_order: turn_order + 1,
+                phase: "ingame".to_string(),
+                created_at: chrono::Utc::now(),
+            })
+            .await?;
+
         game_state.perform_ingame_action(&selected_action);
+        turn_order += 1;
     }
-    game_state.start_new_game();
+
+    let players_in_finishing_order = get_players_in_finishing_order(game_state);
+    let num_players = game_state.table.len();
+
+    for (place, player) in players_in_finishing_order.iter().enumerate() {
+        let finishing_place = place + 1;
+        let finishing_role = calculate_role(finishing_place, num_players);
+
+        recorder
+            .record_game_result(&database::models::GameResultRecord {
+                id: None,
+                game_id,
+                player_id: player.state.id,
+                finishing_place,
+                finishing_role,
+            })
+            .await?;
+    }
+
+    recorder.finish_game(game_id, chrono::Utc::now()).await?;
+
+    Ok(())
+}
+
+fn action_type_to_string(action: &Action) -> String {
+    match action {
+        Action::SendCard { .. } => "SendCard".to_string(),
+        Action::PlayCards { .. } => "PlayCards".to_string(),
+        Action::Pass => "Pass".to_string(),
+    }
+}
+
+fn serialize_card_play(card_play: &types::CardPlay) -> serde_json::Value {
+    match card_play {
+        types::CardPlay::Single(card) => serde_json::json!({
+            "type": "Single",
+            "cards": [card.to_string()]
+        }),
+        types::CardPlay::Pair(c1, c2) => serde_json::json!({
+            "type": "Pair",
+            "cards": [c1.to_string(), c2.to_string()]
+        }),
+        types::CardPlay::Triple(c1, c2, c3) => serde_json::json!({
+            "type": "Triple",
+            "cards": [c1.to_string(), c2.to_string(), c3.to_string()]
+        }),
+        types::CardPlay::Quad(c1, c2, c3, c4) => serde_json::json!({
+            "type": "Quad",
+            "cards": [c1.to_string(), c2.to_string(), c3.to_string(), c4.to_string()]
+        }),
+    }
+}
+
+fn serialize_card_play_single(card: &types::Card) -> serde_json::Value {
+    serde_json::json!({
+        "type": "Single",
+        "cards": [card.to_string()]
+    })
+}
+
+fn calculate_role(finishing_place: usize, num_players: usize) -> String {
+    match finishing_place {
+        1 => "President".to_string(),
+        2 => "VicePresident".to_string(),
+        place if place == num_players - 1 => "ViceAsshole".to_string(),
+        place if place == num_players => "Asshole".to_string(),
+        _ => "Secretary".to_string(),
+    }
+}
+
+fn get_players_in_finishing_order(game_state: &GameState) -> Vec<&Player> {
+    let mut worst_to_first = Vec::new();
+
+    for player in &game_state.table {
+        if !player.state.current_hand.is_empty() {
+            worst_to_first.push(player);
+        }
+    }
+
+    for event in game_state.history.iter().rev() {
+        if matches!(event.action, Action::PlayCards { .. })
+            && !worst_to_first.iter().any(|p| p.state.id == event.player_id)
+        {
+            if let Some(player) = game_state.get_player(event.player_id) {
+                worst_to_first.push(player);
+            }
+        }
+    }
+
+    worst_to_first.into_iter().rev().collect()
+}
+
+pub fn generate_deck_seed() -> u64 {
+    use rand::Rng;
+    let mut rng = rand::thread_rng();
+    rng.gen()
 }

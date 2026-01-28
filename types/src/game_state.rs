@@ -35,7 +35,7 @@ pub struct PublicInfo {
 }
 
 impl GameState {
-    pub fn new(player_inputs: Vec<(String, Box<dyn Strategy>)>) -> Self {
+    pub fn new(player_inputs: Vec<(Uuid, String, Box<dyn Strategy>)>) -> Self {
         let num_players = player_inputs.len();
         let mut deck = Deck::new();
         deck.reset_shuffle();
@@ -43,11 +43,11 @@ impl GameState {
         log::info!("Num players: {num_players:?}, hand size: {hand_size:?}");
         let mut players: Vec<_> = player_inputs
             .into_iter()
-            .map(|(name, strat)| {
+            .map(|(id, name, strat)| {
                 let cards: Vec<_> = deck.deal(hand_size).into_iter().map_into().collect();
                 assert_eq!(cards.len(), hand_size);
                 Player {
-                    state: PlayerState::new(name, cards, None),
+                    state: PlayerState::new_with_id(id, name, cards, None),
                     strategy: strat,
                 }
             })
@@ -110,10 +110,10 @@ impl GameState {
             actions.push(Action::Pass);
         }
         // first card play must contain starting card
-        let is_first_cardplay = self
+        let is_first_cardplay = !self
             .history
             .iter()
-            .all(|ev| !matches!(ev.action, Action::PlayCards { .. }));
+            .any(|ev| matches!(ev.action, Action::PlayCards { .. }));
         if is_first_cardplay {
             let (_, starting_card) = self.starting_player_and_card();
             actions.retain(|action| match action {

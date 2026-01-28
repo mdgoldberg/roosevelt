@@ -31,10 +31,10 @@ impl PartialOrd for CardPlay {
 
 impl Ord for CardPlay {
     fn cmp(&self, other: &Self) -> Ordering {
-        if std::mem::discriminant(self) != std::mem::discriminant(other) {
-            panic!("Cannot compare CardPlay variants of different types");
-        }
-        self.value().cmp(&other.value())
+        // Compare by size first ( Singles < Pairs < Triples < Quads )
+        self.size()
+            .cmp(&other.size())
+            .then_with(|| self.value().cmp(&other.value()))
     }
 }
 
