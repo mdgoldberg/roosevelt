@@ -63,7 +63,7 @@ Roosevelt supports database persistence for recording games, players, and action
 1. Set up database URL (optional - defaults to in-memory):
 
 ```bash
-export ROOSEVELT_DATABASE="sqlite:roosevelt.db"
+export DATABASE_URL="sqlite:roosevelt.db"
 ```
 
 2. Run with database (will create database automatically):
@@ -82,7 +82,7 @@ cargo run --release --bin run_simulation -- --config config.yaml --database sqli
 The database URL is determined in this priority order:
 
 1. **CLI flag** `--database <url>` (highest priority)
-2. **Environment variable** `ROOSEVELT_DATABASE`
+2. **Environment variable** `DATABASE_URL`
 3. **YAML config** `database:` field
 4. **Default** `sqlite::memory:` (no persistence, for testing)
 
@@ -93,7 +93,7 @@ Use `sqlite::memory:` for testing without persistence.
 Configuration sources are checked in this order:
 
 1. CLI flags (`--database`, `--force-new-players`, `--auto-reuse-players`)
-2. Environment variables (`ROOSEVELT_DATABASE`)
+2. Environment variables (`DATABASE_URL`)
 3. YAML config file
 4. Hardcoded defaults
 
