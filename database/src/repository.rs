@@ -1,6 +1,7 @@
 use super::models::*;
-use super::GameRecorder;
+use super::{DatabaseError, GameRecorder};
 use sqlx::{Row, SqlitePool};
+use std::path::Path;
 use uuid::Uuid;
 
 pub struct DatabaseRecorder {
@@ -13,6 +14,16 @@ impl DatabaseRecorder {
     }
 
     pub async fn run_migrations(&self) -> Result<(), Box<dyn std::error::Error>> {
+        // Pre-flight check for migration directory
+        let migrations_dir = Path::new("./migrations");
+        if !migrations_dir.exists() {
+            tracing::info!(
+                "Migrations directory not found at {}', skipping migrations",
+                migrations_dir.display()
+            );
+            return Ok(());
+        }
+
         sqlx::migrate!("./migrations").run(&self.pool).await?;
         Ok(())
     }
@@ -43,10 +54,13 @@ impl GameRecorder for DatabaseRecorder {
             .fetch_optional(&self.pool)
             .await?;
 
-        Ok(row.map(|r| {
-            let id: String = r.get("id");
-            Uuid::parse_str(&id).unwrap()
-        }))
+        Ok(match row {
+            Some(r) => {
+                let id: String = r.get("id");
+                Some(Uuid::parse_str(&id).map_err(DatabaseError::UuidParsing)?)
+            }
+            None => None,
+        })
     }
 
     async fn record_game(&self, game: &GameRecord) -> Result<i64, Box<dyn std::error::Error>> {

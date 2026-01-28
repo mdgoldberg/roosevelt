@@ -22,4 +22,7 @@ pub enum DatabaseError {
 
     #[error("Retry exhausted: {0}")]
     RetryExhausted(String),
+
+    #[error("UUID parsing error: {0}")]
+    UuidParsing(#[from] uuid::Error),
 }
