@@ -1,4 +1,5 @@
 pub mod bulk_writer;
+pub mod streaming_writer;
 pub mod traits;
 pub mod game_handle;
 
