@@ -77,28 +77,24 @@ cargo run --release --bin run_simulation -- --config config.yaml --database sqli
    - Type `y` to reuse existing player record
    - Type `n` to create new player with same name
 
-#### Database Configuration Priority
-
-The database URL is determined in this priority order:
-
-1. **CLI flag** `--database <url>` (highest priority)
-2. **Environment variable** `DATABASE_URL`
-3. **YAML config** `database:` field
-4. **Default** `sqlite::memory:` (no persistence, for testing)
-
-Use `sqlite::memory:` for testing without persistence.
-
 #### Configuration Priority
 
-Configuration sources are checked in this order:
+Configuration sources are checked in this priority order:
 
-1. CLI flags (`--database`, `--force-new-players`, `--auto-reuse-players`)
-2. Environment variables (`DATABASE_URL`)
-3. YAML config file
-4. Hardcoded defaults
+1. **CLI flags** (highest priority)
+   - `--database <url>` - Database connection URL
+   - `--force-new-players` - Always create new player records
+   - `--auto-reuse-players` - Skip prompts and auto-reuse existing players
+2. **Environment variables**
+   - `DATABASE_URL` - Database connection string
+3. **YAML config file**
+   - `database:` field for database URL
+   - `players:` and other game settings
+4. **Hardcoded defaults**
+   - Database: `sqlite::memory:` (no persistence, useful for testing)
+   - Player registration: Auto-prompt for existing players
 
-Use `--force-new-players` to always create new player records.
-Use `--auto-reuse-players` to skip prompts and automatically reuse players.
+Use `sqlite::memory:` as the database URL for testing without persistence.
 
 #### YAML Structure with Database
 
@@ -114,32 +110,6 @@ game_config:
   delay_ms: 500  # Optional: delay between moves (ms)
 
 database: sqlite:roosevelt.db  # Optional: database URL
-```
-
-### Running Your First Game
-
-1. Create a configuration file `config.yaml`:
-
-```yaml
-players:
-  - name: "Alice"
-    strategy: "default"
-  - name: "Bob"
-    strategy: "random"
-  - name: "Charlie"
-    strategy: "input"  # Interactive player (you!)
-```
-
-2. Run the simulation:
-
-```bash
-cargo run --release --bin run_simulation -- --config config.yaml
-```
-
-3. For a slower game with delays between moves:
-
-```bash
-cargo run --release --bin run_simulation -- --config config.yaml --delay-ms 500
 ```
 
 ## Game Rules Overview
@@ -361,8 +331,6 @@ When using a persistent database:
 3. Use `--auto-reuse-players` to skip prompts and auto-reuse
 4. Use `--force-new-players` to always create new records
 
-## Development
-
 ### Testing
 
 Run the test suite:
@@ -380,19 +348,6 @@ cargo test --package simulation --test integration_tests
 # Run with output
 cargo test --workspace -- --nocapture
 ```
-
-For developers interested in extending Roosevelt:
-
-- **Adding strategies**: Implement the `Strategy` trait in `strategies/src/lib.rs`
-- **Modifying game rules**: Edit `types/src/game_state.rs`
-- **CLI changes**: Update `simulation/src/bin/run_simulation.rs`
-- **Database integration**: Use `database::DatabaseWriter` trait for persistence (see `database/README.md` for details)
-
-The project uses a Rust workspace with four crates:
-- `types` - Core game logic and data structures
-- `strategies` - AI player implementations
-- `simulation` - CLI game runner
-- `database` - Database persistence layer
 
 ## License
 
