@@ -64,7 +64,7 @@ roosevelt/
 - **Strategy pattern**: Dynamic dispatch via `Box<dyn Strategy>`
 - **Logging**: Use `log::` facade, initialize with `env_logger::init()`
 - **Formatting**: `imports_granularity = "Crate"`, `group_imports = "StdExternalCrate"`
-- **No tests**: Zero test infrastructure exists
+- **Testing**: Unit and integration tests exist for database, simulation, and types crates
 - **CI/CD**: `.github/workflows/ci.yml` enforces fmt, clippy, build, test
 
 ## ANTI-PATTERNS (THIS PROJECT)

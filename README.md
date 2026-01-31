@@ -332,7 +332,7 @@ For developers interested in extending Roosevelt:
 - **Adding strategies**: Implement the `Strategy` trait in `strategies/src/lib.rs`
 - **Modifying game rules**: Edit `types/src/game_state.rs`
 - **CLI changes**: Update `simulation/src/bin/run_simulation.rs`
-- **Database integration**: Use `database::GameRecorder` trait for persistence
+- **Database integration**: Use `database::DatabaseWriter` trait for persistence (see `database/README.md` for details)
 
 The project uses a Rust workspace with four crates:
 - `types` - Core game logic and data structures
@@ -386,7 +386,7 @@ For developers interested in extending Roosevelt:
 - **Adding strategies**: Implement the `Strategy` trait in `strategies/src/lib.rs`
 - **Modifying game rules**: Edit `types/src/game_state.rs`
 - **CLI changes**: Update `simulation/src/bin/run_simulation.rs`
-- **Database integration**: Use `database::GameRecorder` trait for persistence
+- **Database integration**: Use `database::DatabaseWriter` trait for persistence (see `database/README.md` for details)
 
 The project uses a Rust workspace with four crates:
 - `types` - Core game logic and data structures
