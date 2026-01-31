@@ -1,6 +1,38 @@
 pub struct DatabaseConfig {
     pub url: String,
     pub pool_size: usize,
+    pub writer_type: DatabaseWriterType,
+}
+
+/// Type of database writer to use for game recording
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum DatabaseWriterType {
+    /// Bulk writer collects all events in memory and saves atomically at game end
+    #[default]
+    Bulk,
+    /// Streaming writer persists events immediately as they occur
+    Streaming,
+}
+
+impl std::str::FromStr for DatabaseWriterType {
+    type Err = String;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s.to_lowercase().as_str() {
+            "bulk" => Ok(Self::Bulk),
+            "streaming" => Ok(Self::Streaming),
+            _ => Err(format!("Unknown writer type: {}", s)),
+        }
+    }
+}
+
+impl std::fmt::Display for DatabaseWriterType {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::Bulk => write!(f, "bulk"),
+            Self::Streaming => write!(f, "streaming"),
+        }
+    }
 }
 
 impl DatabaseConfig {
@@ -15,7 +47,11 @@ impl DatabaseConfig {
             "sqlite::memory:".to_string()
         };
 
-        Self { url, pool_size: 20 }
+        Self {
+            url,
+            pool_size: 20,
+            writer_type: DatabaseWriterType::default(),
+        }
     }
 
     pub async fn create_pool(&self) -> Result<sqlx::SqlitePool, sqlx::Error> {

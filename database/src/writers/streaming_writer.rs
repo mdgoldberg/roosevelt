@@ -14,7 +14,7 @@ impl StreamingGameWriter {
     }
 
     pub async fn run_migrations(&self) -> Result<(), Box<dyn std::error::Error>> {
-        let migrations_dir = std::path::Path::new("./migrations");
+        let migrations_dir = std::path::Path::new("database/migrations");
         if !migrations_dir.exists() {
             tracing::info!(
                 "Migrations directory not found at {}', skipping migrations",
@@ -87,7 +87,7 @@ impl DatabaseWriter for StreamingGameWriter {
 
     async fn record_action(&mut self, handle: GameHandle, action: &ActionRecord) -> Result<(), DatabaseError> {
         let card_play_json = action.card_play.as_ref()
-            .map(|v| serde_json::to_vec(v))
+            .map(serde_json::to_vec)
             .transpose()
             .map_err(DatabaseError::Serialization)?;
         let target_player_id = action.target_player_id.map(|u| u.to_string());

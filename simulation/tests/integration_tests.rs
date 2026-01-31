@@ -31,9 +31,9 @@ async fn test_run_game_with_default_strategies() {
     ]);
 
     let mut game_state = GameState::new(player_inputs);
-    let recorder = NoopRecorder;
+    let mut recorder = NoopRecorder;
 
-    run_game(&mut game_state, None, &recorder, None)
+    run_game(&mut game_state, None, &mut recorder, None)
         .await
         .expect("Game should complete successfully");
 
@@ -58,9 +58,9 @@ async fn test_run_game_with_mixed_strategies() {
     ]);
 
     let mut game_state = GameState::new(player_inputs);
-    let recorder = NoopRecorder;
+    let mut recorder = NoopRecorder;
 
-    run_game(&mut game_state, None, &recorder, None)
+    run_game(&mut game_state, None, &mut recorder, None)
         .await
         .expect("Game should complete successfully");
 
@@ -81,10 +81,10 @@ async fn test_run_game_with_delay() {
     ]);
 
     let mut game_state = GameState::new(player_inputs);
-    let recorder = NoopRecorder;
+    let mut recorder = NoopRecorder;
 
     let start = std::time::Instant::now();
-    run_game(&mut game_state, Some(10), &recorder, None)
+    run_game(&mut game_state, Some(10), &mut recorder, None)
         .await
         .expect("Game should complete successfully");
     let duration = start.elapsed();
@@ -114,9 +114,9 @@ async fn test_multiple_games() {
     ]);
 
     let mut game_state = GameState::new(player_inputs);
-    let recorder = NoopRecorder;
+    let mut recorder = NoopRecorder;
 
-    run_game(&mut game_state, None, &recorder, None)
+    run_game(&mut game_state, None, &mut recorder, None)
         .await
         .expect("First game should complete successfully");
 
@@ -136,7 +136,7 @@ async fn test_multiple_games() {
     ]);
 
     let mut game_state2 = GameState::new(player_inputs_2);
-    run_game(&mut game_state2, None, &recorder, None)
+    run_game(&mut game_state2, None, &mut recorder, None)
         .await
         .expect("Second game should complete successfully");
 

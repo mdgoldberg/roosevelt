@@ -1,81 +1,57 @@
+pub mod collectors;
 pub mod config;
 pub mod error;
 pub mod models;
-pub mod repository;
 pub mod retry;
+pub mod writers;
 
+pub use collectors::{GameEventCollector, GameMetadata};
 pub use config::DatabaseConfig;
 pub use error::DatabaseError;
 pub use models::{ActionRecord, FailedWrite, GameRecord, GameResultRecord, PlayerRecord};
-pub use repository::DatabaseRecorder;
 pub use retry::retry_with_backoff;
+pub use writers::{BulkGameWriter, DatabaseWriter, GameHandle, StreamingGameWriter};
 
-#[async_trait::async_trait]
-pub trait GameRecorder: Send + Sync {
-    async fn record_player(
-        &self,
-        player_id: uuid::Uuid,
-        name: &str,
-    ) -> Result<(), Box<dyn std::error::Error>>;
-    async fn get_player_by_name(
-        &self,
-        name: &str,
-    ) -> Result<Option<uuid::Uuid>, Box<dyn std::error::Error>>;
-    async fn record_game(&self, game: &GameRecord) -> Result<i64, Box<dyn std::error::Error>>;
-    async fn record_action(&self, action: &ActionRecord) -> Result<(), Box<dyn std::error::Error>>;
-    async fn record_game_result(
-        &self,
-        result: &GameResultRecord,
-    ) -> Result<(), Box<dyn std::error::Error>>;
-    async fn finish_game(
-        &self,
-        game_id: i64,
-        finished_at: chrono::DateTime<chrono::Utc>,
-    ) -> Result<(), Box<dyn std::error::Error>>;
-}
-
+// NoopRecorder for when database persistence is not needed
 pub struct NoopRecorder;
 
 #[async_trait::async_trait]
-impl GameRecorder for NoopRecorder {
+impl writers::DatabaseWriter for NoopRecorder {
     async fn record_player(
-        &self,
+        &mut self,
         _player_id: uuid::Uuid,
         _name: &str,
-    ) -> Result<(), Box<dyn std::error::Error>> {
+    ) -> Result<(), error::DatabaseError> {
         Ok(())
     }
 
     async fn get_player_by_name(
-        &self,
+        &mut self,
         _name: &str,
-    ) -> Result<Option<uuid::Uuid>, Box<dyn std::error::Error>> {
+    ) -> Result<Option<uuid::Uuid>, error::DatabaseError> {
         Ok(None)
     }
 
-    async fn record_game(&self, _game: &GameRecord) -> Result<i64, Box<dyn std::error::Error>> {
-        Ok(0)
+    async fn start_game(
+        &mut self,
+        _game_meta: collectors::GameMetadata,
+    ) -> Result<writers::GameHandle, error::DatabaseError> {
+        Ok(writers::GameHandle::new(0))
     }
 
     async fn record_action(
-        &self,
-        _action: &ActionRecord,
-    ) -> Result<(), Box<dyn std::error::Error>> {
-        Ok(())
-    }
-
-    async fn record_game_result(
-        &self,
-        _result: &GameResultRecord,
-    ) -> Result<(), Box<dyn std::error::Error>> {
+        &mut self,
+        _handle: writers::GameHandle,
+        _action: &models::ActionRecord,
+    ) -> Result<(), error::DatabaseError> {
         Ok(())
     }
 
     async fn finish_game(
-        &self,
-        _game_id: i64,
-        _finished_at: chrono::DateTime<chrono::Utc>,
-    ) -> Result<(), Box<dyn std::error::Error>> {
+        &mut self,
+        _handle: writers::GameHandle,
+        _results: &[models::GameResultRecord],
+    ) -> Result<(), error::DatabaseError> {
         Ok(())
     }
 }

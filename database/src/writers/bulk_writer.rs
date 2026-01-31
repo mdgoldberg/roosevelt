@@ -21,7 +21,7 @@ impl BulkGameWriter {
     }
 
     pub async fn run_migrations(&self) -> Result<(), Box<dyn std::error::Error>> {
-        let migrations_dir = std::path::Path::new("./migrations");
+        let migrations_dir = std::path::Path::new("database/migrations");
         if !migrations_dir.exists() {
             tracing::info!(
                 "Migrations directory not found at {}', skipping migrations",
@@ -74,7 +74,7 @@ impl BulkGameWriter {
 
         for action in &collector.actions {
             let card_play_json = action.card_play.as_ref()
-                .map(|v| serde_json::to_vec(v))
+                .map(serde_json::to_vec)
                 .transpose()
                 .map_err(DatabaseError::Serialization)?;
             let target_player_id = action.target_player_id.map(|u| u.to_string());
@@ -123,7 +123,14 @@ impl BulkGameWriter {
 
 #[async_trait::async_trait]
 impl DatabaseWriter for BulkGameWriter {
-    async fn record_player(&mut self, _player_id: Uuid, _name: &str) -> Result<(), DatabaseError> {
+    async fn record_player(&mut self, player_id: Uuid, name: &str) -> Result<(), DatabaseError> {
+        let player_id_str = player_id.to_string();
+        sqlx::query("INSERT OR IGNORE INTO players (id, name) VALUES (?, ?)")
+            .bind(player_id_str)
+            .bind(name)
+            .execute(&self.pool)
+            .await
+            .map_err(|e| DatabaseError::Query(e.to_string()))?;
         Ok(())
     }
 
@@ -185,9 +192,8 @@ mod tests {
         // Skip migrations for in-memory test - just verify basic functionality
         // In real usage, migrations would be run first
         let player_id = Uuid::new_v4();
-        // For bulk writer, record_player is a no-op, so just verify it doesn't panic
-        writer.record_player(player_id, "TestPlayer").await.unwrap();
-        // get_player_by_name will fail without migrations, so we skip that assertion
+        // Note: record_player now actually inserts players, which requires database tables
+        // For this basic test, we just verify start_game works without player operations
         let player_order = vec![player_id];
         let metadata = GameMetadata {
             started_at: Utc::now(),

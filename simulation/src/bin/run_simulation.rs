@@ -5,8 +5,7 @@ use std::str::FromStr;
 use clap::Parser;
 use serde::{Deserialize, Serialize};
 
-use database::DatabaseRecorder;
-use database::{DatabaseConfig, NoopRecorder};
+use database::{BulkGameWriter, DatabaseConfig, NoopRecorder};
 use simulation::run_game;
 use strategies::{DefaultStrategy, InputStrategy, RandomStrategy};
 use types::game_state::GameState;
@@ -97,20 +96,20 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let db_config = DatabaseConfig::from_cli_or_env_or_yaml(args.database, config.database);
 
-    let recorder: Box<dyn database::GameRecorder> = if db_config.url == "sqlite::memory:" {
+    let mut recorder: Box<dyn database::DatabaseWriter> = if db_config.url == "sqlite::memory:" {
         log::info!("Using in-memory database (no persistence)");
         Box::new(NoopRecorder)
     } else {
         log::info!("Using database: {}", db_config.url);
         let pool = db_config.create_pool().await?;
-        let recorder = DatabaseRecorder::new(pool);
+        let recorder = BulkGameWriter::new(pool);
         recorder.run_migrations().await?;
         Box::new(recorder)
     };
 
     let player_inputs = register_or_reuse_players(
         &game_config.players,
-        &*recorder,
+        &mut *recorder,
         args.force_new_players,
         args.auto_reuse_players,
     )
@@ -124,7 +123,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         run_game(
             &mut game_state,
             game_config.delay_ms,
-            &*recorder,
+            &mut *recorder,
             Some(game_config_json),
         )
         .await?;
@@ -134,7 +133,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
 async fn register_or_reuse_players(
     player_configs: &[PlayerConfig],
-    recorder: &dyn database::GameRecorder,
+    recorder: &mut dyn database::DatabaseWriter,
     force_new: bool,
     auto_reuse: bool,
 ) -> Result<Vec<(Uuid, String, Box<dyn Strategy>)>, Box<dyn std::error::Error>> {
