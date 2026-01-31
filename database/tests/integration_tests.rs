@@ -4,15 +4,17 @@
 //! and StreamingGameWriter without requiring database migrations. In a production
 //! environment with proper schema setup, these writers would persist to SQLite.
 
+use chrono::Utc;
 use database::{BulkGameWriter, DatabaseWriter, GameMetadata, StreamingGameWriter};
 use sqlx::SqlitePool;
 use uuid::Uuid;
-use chrono::Utc;
 
 /// Test that BulkGameWriter properly manages game handles
 #[tokio::test]
 async fn test_bulk_game_writer_handle_management() {
-    let pool = SqlitePool::connect(":memory:").await.expect("Failed to connect");
+    let pool = SqlitePool::connect(":memory:")
+        .await
+        .expect("Failed to connect");
     let mut writer = BulkGameWriter::new(pool);
 
     let player_id = Uuid::new_v4();
@@ -25,9 +27,18 @@ async fn test_bulk_game_writer_handle_management() {
     };
 
     // Start multiple games and verify unique handles
-    let handle1 = writer.start_game(metadata.clone()).await.expect("Failed to start game 1");
-    let handle2 = writer.start_game(metadata.clone()).await.expect("Failed to start game 2");
-    let handle3 = writer.start_game(metadata).await.expect("Failed to start game 3");
+    let handle1 = writer
+        .start_game(metadata.clone())
+        .await
+        .expect("Failed to start game 1");
+    let handle2 = writer
+        .start_game(metadata.clone())
+        .await
+        .expect("Failed to start game 2");
+    let handle3 = writer
+        .start_game(metadata)
+        .await
+        .expect("Failed to start game 3");
 
     assert!(handle1.as_i64() > 0);
     assert!(handle2.as_i64() > 0);
@@ -39,7 +50,9 @@ async fn test_bulk_game_writer_handle_management() {
 /// Test that StreamingGameWriter creates unique handles
 #[tokio::test]
 async fn test_streaming_game_writer_handle_management() {
-    let pool = SqlitePool::connect(":memory:").await.expect("Failed to connect");
+    let pool = SqlitePool::connect(":memory:")
+        .await
+        .expect("Failed to connect");
     let writer = StreamingGameWriter::new(pool);
 
     let player_id = Uuid::new_v4();
@@ -126,8 +139,12 @@ async fn test_game_result_record_creation() {
 #[tokio::test]
 async fn test_writer_trait_object() {
     // Test that we can create trait objects
-    let pool1 = SqlitePool::connect(":memory:").await.expect("Failed to connect");
-    let pool2 = SqlitePool::connect(":memory:").await.expect("Failed to connect");
+    let pool1 = SqlitePool::connect(":memory:")
+        .await
+        .expect("Failed to connect");
+    let pool2 = SqlitePool::connect(":memory:")
+        .await
+        .expect("Failed to connect");
 
     let _bulk_writer: Box<dyn DatabaseWriter> = Box::new(BulkGameWriter::new(pool1));
     let _streaming_writer: Box<dyn DatabaseWriter> = Box::new(StreamingGameWriter::new(pool2));

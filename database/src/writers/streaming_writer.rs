@@ -1,7 +1,7 @@
 use super::{DatabaseWriter, GameHandle};
-use crate::{DatabaseError, ActionRecord, GameResultRecord};
 use crate::collectors::GameMetadata;
-use sqlx::{SqlitePool, Row};
+use crate::{ActionRecord, DatabaseError, GameResultRecord};
+use sqlx::{Row, SqlitePool};
 use uuid::Uuid;
 
 pub struct StreamingGameWriter {
@@ -61,9 +61,10 @@ impl DatabaseWriter for StreamingGameWriter {
     }
 
     async fn start_game(&mut self, game_meta: GameMetadata) -> Result<GameHandle, DatabaseError> {
-        let player_order_json = serde_json::to_vec(&game_meta.player_order)
-            .map_err(DatabaseError::Serialization)?;
-        let configuration_json = game_meta.configuration
+        let player_order_json =
+            serde_json::to_vec(&game_meta.player_order).map_err(DatabaseError::Serialization)?;
+        let configuration_json = game_meta
+            .configuration
             .as_ref()
             .map(serde_json::to_vec)
             .transpose()
@@ -85,8 +86,14 @@ impl DatabaseWriter for StreamingGameWriter {
         Ok(GameHandle::new(game_id))
     }
 
-    async fn record_action(&mut self, handle: GameHandle, action: &ActionRecord) -> Result<(), DatabaseError> {
-        let card_play_json = action.card_play.as_ref()
+    async fn record_action(
+        &mut self,
+        handle: GameHandle,
+        action: &ActionRecord,
+    ) -> Result<(), DatabaseError> {
+        let card_play_json = action
+            .card_play
+            .as_ref()
             .map(serde_json::to_vec)
             .transpose()
             .map_err(DatabaseError::Serialization)?;
@@ -110,8 +117,16 @@ impl DatabaseWriter for StreamingGameWriter {
         Ok(())
     }
 
-    async fn finish_game(&mut self, handle: GameHandle, results: &[GameResultRecord]) -> Result<(), DatabaseError> {
-        let mut tx = self.pool.begin().await.map_err(|e| DatabaseError::Transaction(e.to_string()))?;
+    async fn finish_game(
+        &mut self,
+        handle: GameHandle,
+        results: &[GameResultRecord],
+    ) -> Result<(), DatabaseError> {
+        let mut tx = self
+            .pool
+            .begin()
+            .await
+            .map_err(|e| DatabaseError::Transaction(e.to_string()))?;
 
         for result in results {
             let player_id = result.player_id.to_string();
@@ -134,7 +149,9 @@ impl DatabaseWriter for StreamingGameWriter {
             .await
             .map_err(|e| DatabaseError::Query(e.to_string()))?;
 
-        tx.commit().await.map_err(|e| DatabaseError::Transaction(e.to_string()))?;
+        tx.commit()
+            .await
+            .map_err(|e| DatabaseError::Transaction(e.to_string()))?;
         Ok(())
     }
 }
@@ -143,9 +160,9 @@ impl DatabaseWriter for StreamingGameWriter {
 mod tests {
     use super::*;
     use crate::collectors::GameMetadata;
-    use uuid::Uuid;
     use chrono::Utc;
     use sqlx::SqlitePool;
+    use uuid::Uuid;
 
     #[tokio::test]
     async fn test_streaming_game_writer_persists_immediately() {

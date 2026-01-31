@@ -1,7 +1,7 @@
+use database::{DatabaseWriter, GameMetadata};
 use std::{thread::sleep, time::Duration};
 use types::game_state::GameState;
 use types::{Action, Player};
-use database::{DatabaseWriter, GameMetadata};
 
 pub async fn run_game(
     game_state: &mut GameState,
@@ -14,7 +14,9 @@ pub async fn run_game(
 
     // Record players first
     for player in &game_state.table {
-        recorder.record_player(player.state.id, &format!("Player_{}", player.state.id)).await?;
+        recorder
+            .record_player(player.state.id, &format!("Player_{}", player.state.id))
+            .await?;
     }
 
     let game_meta = GameMetadata {
@@ -40,17 +42,22 @@ pub async fn run_game(
             _ => (action_type_to_string(&event.action), None, None),
         };
 
-        recorder.record_action(handle, &database::models::ActionRecord {
-            id: None,
-            game_id: handle.as_i64(),
-            player_id: event.player_id,
-            action_type,
-            card_play: card_play_json.map(|v| serde_json::to_value(&v).unwrap()),
-            target_player_id: target_player_id.copied(),
-            turn_order: turn_order + 1,
-            phase: "pregame".to_string(),
-            created_at: chrono::Utc::now(),
-        }).await?;
+        recorder
+            .record_action(
+                handle,
+                &database::models::ActionRecord {
+                    id: None,
+                    game_id: handle.as_i64(),
+                    player_id: event.player_id,
+                    action_type,
+                    card_play: card_play_json.map(|v| serde_json::to_value(&v).unwrap()),
+                    target_player_id: target_player_id.copied(),
+                    turn_order: turn_order + 1,
+                    phase: "pregame".to_string(),
+                    created_at: chrono::Utc::now(),
+                },
+            )
+            .await?;
 
         turn_order += 1;
     }
@@ -83,17 +90,22 @@ pub async fn run_game(
             Action::Pass => ("Pass".to_string(), None, None),
         };
 
-        recorder.record_action(handle, &database::models::ActionRecord {
-            id: None,
-            game_id: handle.as_i64(),
-            player_id: current_player.state.id,
-            action_type,
-            card_play: card_play_json.map(|v| serde_json::to_value(&v).unwrap()),
-            target_player_id: target_player_id.copied(),
-            turn_order: turn_order + 1,
-            phase: "ingame".to_string(),
-            created_at: chrono::Utc::now(),
-        }).await?;
+        recorder
+            .record_action(
+                handle,
+                &database::models::ActionRecord {
+                    id: None,
+                    game_id: handle.as_i64(),
+                    player_id: current_player.state.id,
+                    action_type,
+                    card_play: card_play_json.map(|v| serde_json::to_value(&v).unwrap()),
+                    target_player_id: target_player_id.copied(),
+                    turn_order: turn_order + 1,
+                    phase: "ingame".to_string(),
+                    created_at: chrono::Utc::now(),
+                },
+            )
+            .await?;
 
         game_state.perform_ingame_action(&selected_action);
         turn_order += 1;
@@ -101,18 +113,22 @@ pub async fn run_game(
 
     let players_in_finishing_order = get_players_in_finishing_order(game_state);
 
-    let results: Vec<database::models::GameResultRecord> = players_in_finishing_order.iter().enumerate().map(|(place, player)| {
-        let finishing_place = place + 1;
-        let finishing_role = calculate_role(finishing_place, game_state.table.len());
+    let results: Vec<database::models::GameResultRecord> = players_in_finishing_order
+        .iter()
+        .enumerate()
+        .map(|(place, player)| {
+            let finishing_place = place + 1;
+            let finishing_role = calculate_role(finishing_place, game_state.table.len());
 
-        database::models::GameResultRecord {
-            id: None,
-            game_id: handle.as_i64(),
-            player_id: player.state.id,
-            finishing_place,
-            finishing_role,
-        }
-    }).collect();
+            database::models::GameResultRecord {
+                id: None,
+                game_id: handle.as_i64(),
+                player_id: player.state.id,
+                finishing_place,
+                finishing_role,
+            }
+        })
+        .collect();
 
     recorder.finish_game(handle, &results).await?;
 

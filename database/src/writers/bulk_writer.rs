@@ -1,7 +1,7 @@
 use super::{DatabaseWriter, GameHandle};
-use crate::{DatabaseError, ActionRecord, GameResultRecord};
-use crate::collectors::{GameMetadata, GameEventCollector};
-use sqlx::{SqlitePool, Row};
+use crate::collectors::{GameEventCollector, GameMetadata};
+use crate::{ActionRecord, DatabaseError, GameResultRecord};
+use sqlx::{Row, SqlitePool};
 use std::collections::HashMap;
 use uuid::Uuid;
 
@@ -33,8 +33,15 @@ impl BulkGameWriter {
         Ok(())
     }
 
-    pub async fn save_collector(&self, collector: &mut GameEventCollector) -> Result<(), DatabaseError> {
-        let mut tx = self.pool.begin().await.map_err(|e| DatabaseError::Transaction(e.to_string()))?;
+    pub async fn save_collector(
+        &self,
+        collector: &mut GameEventCollector,
+    ) -> Result<(), DatabaseError> {
+        let mut tx = self
+            .pool
+            .begin()
+            .await
+            .map_err(|e| DatabaseError::Transaction(e.to_string()))?;
 
         for (player_id, name) in &collector.players {
             let player_id_str = player_id.to_string();
@@ -48,7 +55,9 @@ impl BulkGameWriter {
 
         let player_order_json = serde_json::to_vec(&collector.metadata.player_order)
             .map_err(DatabaseError::Serialization)?;
-        let configuration_json = collector.metadata.configuration
+        let configuration_json = collector
+            .metadata
+            .configuration
             .as_ref()
             .map(serde_json::to_vec)
             .transpose()
@@ -73,7 +82,9 @@ impl BulkGameWriter {
         }
 
         for action in &collector.actions {
-            let card_play_json = action.card_play.as_ref()
+            let card_play_json = action
+                .card_play
+                .as_ref()
                 .map(serde_json::to_vec)
                 .transpose()
                 .map_err(DatabaseError::Serialization)?;
@@ -116,7 +127,9 @@ impl BulkGameWriter {
             .await
             .map_err(|e| DatabaseError::Query(e.to_string()))?;
 
-        tx.commit().await.map_err(|e| DatabaseError::Transaction(e.to_string()))?;
+        tx.commit()
+            .await
+            .map_err(|e| DatabaseError::Transaction(e.to_string()))?;
         Ok(())
     }
 }
@@ -158,14 +171,22 @@ impl DatabaseWriter for BulkGameWriter {
         Ok(handle)
     }
 
-    async fn record_action(&mut self, handle: GameHandle, action: &ActionRecord) -> Result<(), DatabaseError> {
+    async fn record_action(
+        &mut self,
+        handle: GameHandle,
+        action: &ActionRecord,
+    ) -> Result<(), DatabaseError> {
         if let Some(collector) = self.active_games.get_mut(&handle) {
             collector.add_action(action.clone());
         }
         Ok(())
     }
 
-    async fn finish_game(&mut self, handle: GameHandle, results: &[GameResultRecord]) -> Result<(), DatabaseError> {
+    async fn finish_game(
+        &mut self,
+        handle: GameHandle,
+        results: &[GameResultRecord],
+    ) -> Result<(), DatabaseError> {
         if let Some(mut collector) = self.active_games.remove(&handle) {
             for result in results {
                 collector.add_result(result.clone());
@@ -179,11 +200,11 @@ impl DatabaseWriter for BulkGameWriter {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::writers::DatabaseWriter;
     use crate::collectors::GameMetadata;
-    use uuid::Uuid;
+    use crate::writers::DatabaseWriter;
     use chrono::Utc;
     use sqlx::SqlitePool;
+    use uuid::Uuid;
 
     #[tokio::test]
     async fn test_bulk_game_writer_basic_functionality() {

@@ -50,8 +50,8 @@ impl GameEventCollector {
 #[tokio::test]
 async fn test_game_event_collection() {
     use crate::collectors::{GameEventCollector, GameMetadata};
-    use uuid::Uuid;
     use chrono::Utc;
+    use uuid::Uuid;
 
     let player_order = vec![Uuid::new_v4()];
     let metadata = GameMetadata {
