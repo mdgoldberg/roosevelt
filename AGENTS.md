@@ -10,11 +10,19 @@ Rust workspace implementing a card game simulation (President/Asshole variant) w
 ## STRUCTURE
 ```
 roosevelt/
-├── Cargo.toml           # Workspace with 3 crates
+├── Cargo.toml           # Workspace with 4 crates
 ├── Cargo.lock
 ├── rust-toolchain.toml  # Stable + rust-analyzer
 ├── rustfmt.toml         # Import grouping rules
-├── notes.txt            # Project todo
+├── database/            # Database persistence layer
+│   ├── src/
+│   │   ├── collectors/   # GameEventCollector, GameMetadata
+│   │   ├── writers/      # BulkGameWriter, StreamingGameWriter
+│   │   ├── config.rs     # DatabaseConfig with writer type selection
+│   │   ├── error.rs      # DatabaseError types
+│   │   ├── models.rs     # ActionRecord, GameResultRecord
+│   │   └── lib.rs
+│   └── Cargo.toml
 ├── types/               # Core data structures
 │   ├── src/
 │   │   ├── action.rs
@@ -47,13 +55,16 @@ roosevelt/
 | CLI entry point | `simulation/src/bin/run_simulation.rs` | YAML config loading, infinite loop |
 | Card ordering | `types/src/card.rs` | Two is highest rank |
 | Player data | `types/src/player.rs`, `player_state.rs` | Roles, hands, public/private state |
+| Database writers | `database/src/writers/` | BulkGameWriter, StreamingGameWriter |
+| Game recording | `database/src/collectors/` | GameEventCollector, GameMetadata |
+| Database config | `database/src/config.rs` | Writer type selection |
 
 ## CONVENTIONS
 - **Workspace**: Centralized dependency management in root `Cargo.toml`
 - **Strategy pattern**: Dynamic dispatch via `Box<dyn Strategy>`
 - **Logging**: Use `log::` facade, initialize with `env_logger::init()`
 - **Formatting**: `imports_granularity = "Crate"`, `group_imports = "StdExternalCrate"`
-- **No tests**: Zero test infrastructure exists
+- **Testing**: Unit and integration tests exist for database, simulation, and types crates
 - **CI/CD**: `.github/workflows/ci.yml` enforces fmt, clippy, build, test
 
 ## ANTI-PATTERNS (THIS PROJECT)
